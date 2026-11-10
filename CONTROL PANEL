@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能工程 Layout-Jet & Pipeline 控制台</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#04070d',
+                            panel: '#0b111e',
+                            border: '#1a2438',
+                            neonGreen: '#00ffaa',
+                            neonYellow: '#ffdc00',
+                            neonCyan: '#00e5ff',
+                            neonPurple: '#9d00ff',
+                            neonRed: '#ff0055'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['JetBrains Mono', 'Fira Code', 'Consolas', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Three.js (3D WebGL Simulation) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Chart.js for real-time telemetry -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,500;0,700;1,400&family=Noto+Sans+TC:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', 'JetBrains Mono', sans-serif;
+            background-color: #04070d;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Tech Cyber Borders & Glows */
+        .cyber-border-emerald {
+            border: 1px solid rgba(0, 255, 170, 0.3);
+            box-shadow: 0 0 12px rgba(0, 255, 170, 0.15);
+        }
+        .cyber-border-yellow {
+            border: 1px solid rgba(255, 220, 0, 0.3);
+            box-shadow: 0 0 12px rgba(255, 220, 0, 0.15);
+        }
+        .cyber-border-purple {
+            border: 1px solid rgba(157, 0, 255, 0.3);
+            box-shadow: 0 0 12px rgba(157, 0, 255, 0.15);
+        }
+        .glow-text-green { text-shadow: 0 0 8px rgba(0, 255, 170, 0.6); }
+        .glow-text-yellow { text-shadow: 0 0 8px rgba(255, 220, 0, 0.6); }
+        .glow-text-cyan { text-shadow: 0 0 8px rgba(0, 229, 255, 0.6); }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; height: 4px; }
+        ::-webkit-scrollbar-track { background: #060913; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00ffaa; }
+
+        /* Scanline HUD effect (pointer-events none to avoid blocking clicks) */
+        .scanlines {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.03),
+                rgba(0, 255, 0, 0.01),
+                rgba(0, 0, 255, 0.03)
+            );
+            background-size: 100% 3px, 6px 100%;
+            pointer-events: none !important;
+        }
+
+        /* Pulse Animation */
+        @keyframes pulse-fast {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .animate-pulse-fast { animation: pulse-fast 1s ease-in-out infinite; }
+    </style>
+</head>
+<body class="h-screen flex flex-col bg-cyber-bg text-slate-200 select-none overflow-hidden relative">
+
+    <!-- Background visual FX overlay -->
+    <div class="absolute inset-0 scanlines opacity-30 z-0"></div>
+
+    <!-- Header / Navbar -->
+    <header class="h-14 border-b border-cyber-border bg-cyber-panel/90 backdrop-blur px-4 flex items-center justify-between z-20 relative">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded bg-gradient-to-br from-cyber-neonGreen via-cyber-neonCyan to-cyber-neonPurple flex items-center justify-center font-mono font-bold text-black shadow-lg">
+                <i data-lucide="cpu" class="w-5 h-5 text-black"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-sm tracking-wider text-white flex items-center gap-2 font-mono">
+                    LAYOUT-JET & PIPELINE SCHEDULER <span class="text-[10px] px-2 py-0.5 rounded bg-cyber-neonGreen/10 text-cyber-neonGreen border border-cyber-neonGreen/30">D-LOCKING v5.2</span>
+                </h1>
+                <p class="text-[10px] text-slate-400 font-mono tracking-tight">PSEUDO-CODE MAPPER // P-COORDINATION ENGINE</p>
+            </div>
+        </div>
+
+        <!-- Telemetry Indicators Top Header -->
+        <div class="flex items-center space-x-6 text-xs font-mono">
+            <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-cyber-neonGreen animate-pulse-fast" id="top-chaos-dot"></span>
+                <span class="text-slate-400">Chaos Level:</span>
+                <span class="text-cyber-neonGreen font-semibold" id="top-chaos-status">0.14 (SUPPRESSED)</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-2">
+                <i data-lucide="zap" class="w-4 h-4 text-cyber-neonYellow"></i>
+                <span class="text-slate-400">Helium Co-Op:</span>
+                <span class="text-cyber-neonYellow" id="top-helium-status">ACTIVE (99.4%)</span>
+            </div>
+            <div class="hidden md:flex items-center space-x-2">
+                <i data-lucide="lock" class="w-4 h-4 text-cyber-neonCyan"></i>
+                <span class="text-slate-400">D-Locking:</span>
+                <span class="text-cyber-neonCyan" id="top-dlock-status">ANCHORED</span>
+            </div>
+            <div class="text-slate-400 border-l border-cyber-border pl-4" id="clock-display">
+                00:00:00 UTC
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace Layout Grid -->
+    <main class="flex-1 grid grid-cols-12 gap-3 p-3 overflow-hidden relative z-10">
+
+        <!-- Left Sidebar: Pseudo-code Structural Parser (4 Cols) -->
+        <section class="col-span-12 lg:col-span-4 flex flex-col gap-3 h-full overflow-hidden">
+            
+            <!-- Raw Pseudo Code Display Box -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg p-3 flex flex-col gap-2">
+                <div class="flex items-center justify-between border-b border-cyber-border pb-1.5">
+                    <span class="text-xs font-bold text-cyber-neonGreen font-mono flex items-center gap-1.5">
+                        <i data-lucide="code-2" class="w-4 h-4"></i> 原生 Pseudo-Code 指令鏈
+                    </span>
+                    <button id="btn-copy-code" class="text-[10px] text-slate-400 hover:text-cyber-neonGreen font-mono flex items-center gap-1 transition cursor-pointer">
+                        <i data-lucide="copy" class="w-3 h-3"></i> 複製語法
+                    </button>
+                </div>
+                <div class="bg-slate-950 p-2.5 rounded border border-slate-800/80 font-mono text-[10.5px] leading-relaxed text-slate-300 break-all select-text overflow-y-auto max-h-24">
+                    <span class="text-cyber-neonCyan">P-coordination.layout-jet</span>[<span class="text-cyber-neonPurple">p-q.filing_vehicle.scheduling-host-abide</span>[<span class="text-cyber-neonYellow">smooth-pending.helium-cooperated_message</span>[<span class="text-cyber-neonGreen">copper_aligned.feature_cohesive-calc</span>[<span class="text-cyber-neonRed">deed-mind.hole_nicking.suppressed-pipeline_determined-chaos.rose-counting.lining_secting-porting_sign.D-locking</span>[<span class="text-cyber-neonYellow">system-prospensed.urge-coap.disclosed-core.segmented</span>]]]]]
+                </div>
+            </div>
+
+            <!-- AST Nested Layers Interactive Tree -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg p-3 flex-1 flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between border-b border-cyber-border pb-2 mb-2">
+                    <h2 class="text-xs font-bold text-white font-mono flex items-center gap-1.5">
+                        <i data-lucide="git-merge" class="w-4 h-4 text-cyber-neonYellow"></i> 7 大核心工程層級 (AST Structural Parser)
+                    </h2>
+                    <span class="text-[10px] text-cyber-neonYellow font-mono">NESTED LEVEL: 7</span>
+                </div>
+
+                <div class="space-y-1.5 overflow-y-auto pr-1 flex-1 text-xs font-mono" id="ast-tree-list">
+                    <!-- Layer Items dynamically rendered via JavaScript -->
+                </div>
+            </div>
+
+            <!-- Selected Layer Parameter Details Inspector -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg p-3 h-44 flex flex-col justify-between cyber-border-emerald">
+                <div>
+                    <div class="flex items-center justify-between border-b border-cyber-border pb-1 mb-2">
+                        <span class="text-xs font-bold text-cyber-neonGreen font-mono flex items-center gap-1" id="inspector-layer-name">
+                            L1: P-coordination.layout-jet
+                        </span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded bg-cyber-neonGreen/10 text-cyber-neonGreen font-mono" id="inspector-status">ACTIVE</span>
+                    </div>
+                    <p class="text-[11px] text-slate-300 mb-2 leading-relaxed" id="inspector-desc">
+                        載入中...
+                    </p>
+                    <div class="grid grid-cols-2 gap-2 text-[10px] font-mono">
+                        <div class="bg-slate-950 p-1.5 rounded border border-slate-800">
+                            <span class="text-slate-500 block">參數 1:</span>
+                            <span class="text-cyber-neonCyan font-semibold" id="inspector-p1">--</span>
+                        </div>
+                        <div class="bg-slate-950 p-1.5 rounded border border-slate-800">
+                            <span class="text-slate-500 block">參數 2:</span>
+                            <span class="text-cyber-neonYellow font-semibold" id="inspector-p2">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="pt-2 border-t border-cyber-border/60 flex justify-between items-center text-[10px] text-slate-400 font-mono">
+                    <span>映射子系統: <strong class="text-white font-normal" id="inspector-subsystem">--</strong></span>
+                    <button id="btn-inspect-recalc" class="px-2 py-0.5 rounded bg-cyber-neonGreen/20 hover:bg-cyber-neonGreen/30 text-cyber-neonGreen border border-cyber-neonGreen/40 transition cursor-pointer">重算特徵</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Center Stage: 3D Layout-Jet Pipeline Simulator (5 Cols) -->
+        <section class="col-span-12 lg:col-span-5 flex flex-col gap-3 h-full overflow-hidden">
+            
+            <!-- 3D WebGL Canvas Container -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg flex-1 relative overflow-hidden flex flex-col cyber-border-yellow">
+                <div class="absolute top-3 left-3 z-10 flex items-center gap-2 pointer-events-none">
+                    <div class="p-1.5 bg-slate-950/80 backdrop-blur rounded border border-cyber-border text-xs font-mono text-slate-200 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-cyber-neonYellow animate-ping"></span>
+                        3D 空間調度車輛與 Pipeline (Three.js Engine)
+                    </div>
+                </div>
+
+                <!-- Mode Controls Overlay -->
+                <div class="absolute top-3 right-3 z-20 flex gap-1.5 font-mono text-[10px]">
+                    <button id="btn-toggle-chaos" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 border border-cyber-neonRed/50 text-cyber-neonRed rounded transition cursor-pointer">
+                        混沌模式: OFF
+                    </button>
+                    <button id="btn-toggle-lock" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 border border-cyber-neonCyan/50 text-cyber-neonCyan rounded transition cursor-pointer">
+                        D-Lock: 鎖定中
+                    </button>
+                </div>
+
+                <!-- Canvas Wrapper -->
+                <div id="canvas-wrapper" class="w-full flex-1 relative cursor-grab active:cursor-grabbing z-0"></div>
+
+                <!-- Canvas Bottom Status Bar -->
+                <div class="h-8 bg-slate-950/90 border-t border-cyber-border px-3 flex items-center justify-between text-[11px] font-mono text-slate-400 z-10">
+                    <span class="flex items-center gap-2">
+                        <i data-lucide="truck" class="w-3.5 h-3.5 text-cyber-neonYellow"></i>
+                        排程車輛 (Filing Vehicles): <strong class="text-white" id="vehicle-count">8 Units</strong>
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-cyber-neonGreen"></i>
+                        Pipeline 流速: <strong class="text-cyber-neonGreen" id="pipeline-speed-text">1.85 GB/s</strong>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Real-time Controls & Operations Console -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg p-3 h-44 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-xs font-bold text-white font-mono flex items-center gap-1.5">
+                        <i data-lucide="sliders" class="w-4 h-4 text-cyber-neonGreen"></i> 即時運算與排程控制中心
+                    </h3>
+                    <span class="text-[10px] font-mono text-slate-400">HOST: scheduling-host-abide</span>
+                </div>
+
+                <!-- Sliders -->
+                <div class="grid grid-cols-2 gap-3 text-xs font-mono">
+                    <div>
+                        <div class="flex justify-between text-slate-300 mb-1 text-[11px]">
+                            <span>scheduling-host 處理速率:</span>
+                            <span class="text-cyber-neonGreen" id="lbl-host-rate">850 ops/s</span>
+                        </div>
+                        <input type="range" id="slider-host-rate" min="100" max="2000" value="850" class="w-full accent-cyber-neonGreen h-1.5 bg-slate-800 rounded cursor-pointer">
+                    </div>
+                    <div>
+                        <div class="flex justify-between text-slate-300 mb-1 text-[11px]">
+                            <span>Helium 通訊平滑因子:</span>
+                            <span class="text-cyber-neonYellow" id="lbl-helium-smooth">0.92</span>
+                        </div>
+                        <input type="range" id="slider-helium-smooth" min="0.1" max="1.0" step="0.05" value="0.92" class="w-full accent-cyber-neonYellow h-1.5 bg-slate-800 rounded cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Action Button Matrix -->
+                <div class="grid grid-cols-3 gap-2">
+                    <button id="btn-suppress-chaos" class="py-1.5 px-2 rounded bg-cyber-neonGreen/20 hover:bg-cyber-neonGreen/30 border border-cyber-neonGreen/50 text-cyber-neonGreen text-xs font-mono font-semibold transition flex items-center justify-center gap-1 cursor-pointer">
+                        <i data-lucide="shield-alert" class="w-3.5 h-3.5"></i> 抑制管道混沌
+                    </button>
+                    <button id="btn-trigger-dlock" class="py-1.5 px-2 rounded bg-cyber-neonCyan/20 hover:bg-cyber-neonCyan/30 border border-cyber-neonCyan/50 text-cyber-neonCyan text-xs font-mono font-semibold transition flex items-center justify-center gap-1 cursor-pointer">
+                        <i data-lucide="lock" class="w-3.5 h-3.5"></i> 觸發 D-Locking
+                    </button>
+                    <button id="btn-urge-coap" class="py-1.5 px-2 rounded bg-cyber-neonYellow/20 hover:bg-cyber-neonYellow/30 border border-cyber-neonYellow/50 text-cyber-neonYellow text-xs font-mono font-semibold transition flex items-center justify-center gap-1 cursor-pointer">
+                        <i data-lucide="radio" class="w-3.5 h-3.5"></i> Urge-CoAP 廣播
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Sidebar: Telemetry Charts & Event Terminal (3 Cols) -->
+        <section class="col-span-12 lg:col-span-3 flex flex-col gap-3 h-full overflow-hidden">
+            
+            <!-- Telemetry Charts Column -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg p-3 flex-1 flex flex-col gap-3 overflow-hidden">
+                
+                <!-- Chart 1: Determined Chaos Level -->
+                <div class="flex-1 flex flex-col min-h-0">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[11px] font-mono text-cyber-neonRed font-semibold flex items-center gap-1">
+                            <i data-lucide="activity" class="w-3.5 h-3.5"></i> 決定性混沌指數 (Chaos)
+                        </span>
+                        <span class="text-[10px] font-mono text-slate-400" id="current-chaos-val">0.14</span>
+                    </div>
+                    <div class="flex-1 relative">
+                        <canvas id="chaosChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Chart 2: Feature Cohesive Calc & Helium Latency -->
+                <div class="flex-1 flex flex-col min-h-0 border-t border-cyber-border/50 pt-2">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[11px] font-mono text-cyber-neonGreen font-semibold flex items-center gap-1">
+                            <i data-lucide="cpu" class="w-3.5 h-3.5"></i> 高導體特徵凝聚算力
+                        </span>
+                        <span class="text-[10px] font-mono text-slate-400" id="current-calc-val">94.2 GFLOPS</span>
+                    </div>
+                    <div class="flex-1 relative">
+                        <canvas id="cohesiveChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-time Execution Logs Terminal -->
+            <div class="bg-cyber-panel/90 border border-cyber-border rounded-lg p-3 h-52 flex flex-col overflow-hidden">
+                <div class="flex items-center justify-between pb-1.5 mb-1.5 border-b border-cyber-border">
+                    <span class="text-xs font-bold text-white font-mono flex items-center gap-1.5">
+                        <i data-lucide="terminal" class="w-3.5 h-3.5 text-cyber-neonCyan"></i> 執行端終端機 Logs
+                    </span>
+                    <button id="btn-clear-terminal" class="text-[10px] text-slate-400 hover:text-white font-mono cursor-pointer">清空</button>
+                </div>
+                <div id="terminal-logs" class="flex-1 overflow-y-auto font-mono text-[10px] space-y-1 pr-1 leading-tight">
+                    <!-- Logs dynamically appended via JS -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Main Logic Script -->
+    <script>
+        // System Global State
+        const state = {
+            activeLayer: 1,
+            chaosLevel: 0.14,
+            isChaosMode: false,
+            isDLocked: true,
+            hostRate: 850,
+            heliumSmooth: 0.92,
+            cohesiveCalc: 94.2,
+            vehiclesCount: 8,
+            pipelineSpeed: 1.85
+        };
+
+        // Pseudo-code 7 Layers AST Definitions
+        const astLayersData = [
+            {
+                id: 1,
+                name: "P-coordination.layout-jet",
+                title: "1. 空間陣列與氣動噴射協調層",
+                tag: "SPATIAL_JET",
+                desc: "作為最外層調度容器，主設空間多維噴射軌跡與動態相位協調，確保車輛與流體運算陣列的方向與幾何對齊。",
+                p1: "Jet Velocity: 420 m/s",
+                p2: "Phase Shift: 0.0 rad",
+                subsystem: "Spatial Phase Engine"
+            },
+            {
+                id: 2,
+                name: "p-q.filing_vehicle.scheduling-host-abide",
+                title: "2. 載具動態佇列與宿主排程協議",
+                tag: "VEHICLE_HOST",
+                desc: "管理 p-q (Priority Queue) 佇列中的 filing_vehicle 車輛，遵守 scheduling-host 依據優先權配額的動態派送與滯留規則。",
+                p1: "Host Rate: 850 ops/s",
+                p2: "Queue Length: 14 Units",
+                subsystem: "Priority Queue Controller"
+            },
+            {
+                id: 3,
+                name: "smooth-pending.helium-cooperated_message",
+                title: "3. 輕量化氦氣訊息緩衝與平滑平移",
+                tag: "HELIUM_MSG",
+                desc: "針對 pending 狀態任務執行 smooth 化調幅，透過低延遲 Helium 協同訊息通道進行跨模組無障礙狀態廣播。",
+                p1: "Smooth Factor: 0.92",
+                p2: "Helium Latency: 0.45 ms",
+                subsystem: "Helium Protocol Bus"
+            },
+            {
+                id: 4,
+                name: "copper_aligned.feature_cohesive-calc",
+                title: "4. 銅導體對齊與特徵凝聚動態算力",
+                tag: "COHESIVE_CALC",
+                desc: "物理特徵與 copper_aligned（銅對齊高導體）運算架構，將多維大數據資料串流聚合成低雜訊特徵張量。",
+                p1: "Calc Speed: 94.2 GFLOPS",
+                p2: "Alignment Ratio: 99.8%",
+                subsystem: "Tensor Cohesion Pipeline"
+            },
+            {
+                id: 5,
+                name: "deed-mind.hole_nicking.suppressed-pipeline",
+                title: "5. 混沌壓制與微瑕疵修補管道",
+                tag: "CHAOS_SUPPRESSOR",
+                desc: "偵測管道傳輸過程中的孔洞點蝕 (hole_nicking) 與缺陷，主動啟動 suppressed-pipeline 自動封裝並消除非線性擾動。",
+                p1: "Hole Detection: 0.002%",
+                p2: "Suppression: ACTIVE",
+                subsystem: "Pipeline Integrity Core"
+            },
+            {
+                id: 6,
+                name: "rose-counting.lining_secting-porting_sign.D-locking",
+                title: "6. 確定性幾何計數與 D-Locking 鎖定",
+                tag: "ROSE_DLOCK",
+                desc: "運用 Rose-counting 玫瑰數列切片演算法進行管道斷面分割 (lining_secting)，搭配 D-locking 實現維度錨定鎖定。",
+                p1: "Rose Curve Mod: 8 Axis",
+                p2: "D-Lock State: ANCHORED",
+                subsystem: "Dimension Anchor Grid"
+            },
+            {
+                id: 7,
+                name: "system-prospensed.urge-coap.disclosed-core.segmented",
+                title: "7. 核心傾瀉、Urge-CoAP 廣播與分段隔離",
+                tag: "DISCLOSED_CORE",
+                desc: "最核心的資源分段模組，經由 Urge-CoAP 輕量級感測器通訊協議，公開暴露可調度之內部記憶體區塊與運算核心。",
+                p1: "Urge-CoAP Port: 5683",
+                p2: "Disclosed Core: 16 Segments",
+                subsystem: "Resource Kernel Segment"
+            }
+        ];
+
+        // --- 1. Terminal Logger Function ---
+        function addTerminalLog(msg, type = 'info') {
+            const terminal = document.getElementById('terminal-logs');
+            if (!terminal) return;
+            const timestamp = new Date().toTimeString().split(' ')[0];
+            
+            let color = 'text-slate-300';
+            if (type === 'success') color = 'text-cyber-neonGreen';
+            if (type === 'warn') color = 'text-cyber-neonYellow';
+            if (type === 'error') color = 'text-cyber-neonRed font-semibold';
+            if (type === 'cyan') color = 'text-cyber-neonCyan';
+
+            const logRow = document.createElement('div');
+            logRow.className = `flex items-start gap-1 ${color}`;
+            logRow.innerHTML = `<span class="text-slate-600 font-mono">[${timestamp}]</span> <span>${msg}</span>`;
+
+            terminal.prepend(logRow);
+            if (terminal.children.length > 40) terminal.removeChild(terminal.lastChild);
+        }
+
+        // --- 2. AST Interactive Render ---
+        function renderASTTree() {
+            const container = document.getElementById('ast-tree-list');
+            if (!container) return;
+            container.innerHTML = '';
+
+            astLayersData.forEach((layer, index) => {
+                const item = document.createElement('div');
+                const indent = Math.min(index * 6, 24); // Visual nesting
+                const isActive = layer.id === state.activeLayer;
+
+                item.className = `p-2 rounded border cursor-pointer transition-all ${
+                    isActive 
+                        ? 'bg-slate-900 border-cyber-neonGreen text-white shadow-md' 
+                        : 'bg-slate-950/80 border-slate-800/80 text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                }`;
+                item.style.marginLeft = `${indent}px`;
+
+                item.innerHTML = `
+                    <div class="flex items-center justify-between pointer-events-none">
+                        <span class="font-semibold text-[11px] font-mono ${isActive ? 'text-cyber-neonGreen' : 'text-slate-300'}">
+                            ${layer.title}
+                        </span>
+                        <span class="text-[9px] px-1 py-0.2 rounded font-mono ${
+                            isActive ? 'bg-cyber-neonGreen/20 text-cyber-neonGreen' : 'bg-slate-800 text-slate-500'
+                        }">${layer.tag}</span>
+                    </div>
+                    <div class="text-[10px] font-mono text-slate-500 truncate mt-0.5 pointer-events-none">${layer.name}</div>
+                `;
+
+                item.addEventListener('click', () => {
+                    state.activeLayer = layer.id;
+                    renderASTTree();
+                    updateInspector(layer);
+                    addTerminalLog(`切換檢視層級 L${layer.id}: [${layer.name}]`, 'cyan');
+                });
+
+                container.appendChild(item);
+            });
+        }
+
+        function updateInspector(layer) {
+            const elName = document.getElementById('inspector-layer-name');
+            const elDesc = document.getElementById('inspector-desc');
+            const elP1 = document.getElementById('inspector-p1');
+            const elP2 = document.getElementById('inspector-p2');
+            const elSub = document.getElementById('inspector-subsystem');
+
+            if (elName) elName.innerText = `L${layer.id}: ${layer.name}`;
+            if (elDesc) elDesc.innerText = layer.desc;
+            if (elP1) elP1.innerText = layer.p1;
+            if (elP2) elP2.innerText = layer.p2;
+            if (elSub) elSub.innerText = layer.subsystem;
+        }
+
+        // --- 3. 3D WebGL Pipeline & Vehicle Simulation (Three.js) ---
+        let scene, camera, renderer, pipelineMesh, particlesGroup, vehiclesGroup;
+
+        function init3DSimulation() {
+            const wrapper = document.getElementById('canvas-wrapper');
+            if (!wrapper) return;
+            const width = wrapper.clientWidth || 400;
+            const height = wrapper.clientHeight || 300;
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x04070d, 0.025);
+
+            camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1000);
+            camera.position.set(0, 5, 22);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(width, height);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            wrapper.appendChild(renderer.domElement);
+
+            // Lights
+            scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+            const dirLight = new THREE.DirectionalLight(0x00ffaa, 1.2);
+            dirLight.position.set(10, 20, 10);
+            scene.add(dirLight);
+
+            const pointLight = new THREE.PointLight(0xffdc00, 2, 40);
+            pointLight.position.set(-10, -5, -5);
+            scene.add(pointLight);
+
+            // Cylinder Pipeline
+            const pipeGeometry = new THREE.CylinderGeometry(2.5, 2.5, 24, 32, 1, true);
+            const pipeMaterial = new THREE.MeshPhongMaterial({
+                color: 0x00e5ff,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.35,
+                side: THREE.DoubleSide
+            });
+            pipelineMesh = new THREE.Mesh(pipeGeometry, pipeMaterial);
+            pipelineMesh.rotation.z = Math.PI / 2;
+            scene.add(pipelineMesh);
+
+            // Particles (Helium message flow)
+            particlesGroup = new THREE.Group();
+            const particleCount = 180;
+            const particleGeo = new THREE.SphereGeometry(0.12, 8, 8);
+            const particleMat = new THREE.MeshBasicMaterial({ color: 0x00ffaa });
+
+            for (let i = 0; i < particleCount; i++) {
+                const mesh = new THREE.Mesh(particleGeo, particleMat);
+                mesh.position.set(
+                    (Math.random() - 0.5) * 22,
+                    (Math.random() - 0.5) * 3.8,
+                    (Math.random() - 0.5) * 3.8
+                );
+                mesh.userData = { speed: 0.1 + Math.random() * 0.15 };
+                particlesGroup.add(mesh);
+            }
+            scene.add(particlesGroup);
+
+            // Orbit Drones (Filing Vehicles)
+            vehiclesGroup = new THREE.Group();
+            const vehicleGeo = new THREE.BoxGeometry(0.8, 0.5, 1.2);
+            const vehicleMat = new THREE.MeshPhongMaterial({
+                color: 0xffdc00,
+                emissive: 0xffdc00,
+                emissiveIntensity: 0.3
+            });
+
+            for (let i = 0; i < state.vehiclesCount; i++) {
+                const vMesh = new THREE.Mesh(vehicleGeo, vehicleMat);
+                const angle = (i / state.vehiclesCount) * Math.PI * 2;
+                vMesh.position.set(
+                    (i - state.vehiclesCount / 2) * 2.5,
+                    Math.sin(angle) * 4.5,
+                    Math.cos(angle) * 4.5
+                );
+                vMesh.userData = { angle: angle, radius: 4.5, speed: 0.02 + Math.random() * 0.01 };
+                vehiclesGroup.add(vMesh);
+            }
+            scene.add(vehiclesGroup);
+
+            // Interactive Drag Controls
+            let isDragging = false;
+            let prevMousePos = { x: 0, y: 0 };
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                prevMousePos = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const deltaX = e.clientX - prevMousePos.x;
+                const deltaY = e.clientY - prevMousePos.y;
+
+                pipelineMesh.rotation.y += deltaX * 0.005;
+                particlesGroup.rotation.y += deltaX * 0.005;
+                vehiclesGroup.rotation.y += deltaX * 0.005;
+
+                pipelineMesh.rotation.x += deltaY * 0.005;
+                particlesGroup.rotation.x += deltaY * 0.005;
+                vehiclesGroup.rotation.x += deltaY * 0.005;
+
+                prevMousePos = { x: e.clientX, y: e.clientY };
+            });
+
+            window.addEventListener('mouseup', () => { isDragging = false; });
+
+            window.addEventListener('resize', () => {
+                if (!wrapper || !renderer || !camera) return;
+                const w = wrapper.clientWidth;
+                const h = wrapper.clientHeight;
+                camera.aspect = w / h;
+                camera.updateProjectionMatrix();
+                renderer.setSize(w, h);
+            });
+        }
+
+        function animate3DSimulation() {
+            requestAnimationFrame(animate3DSimulation);
+
+            const chaosFactor = state.isChaosMode ? 2.5 : 1.0;
+            if (particlesGroup) {
+                particlesGroup.children.forEach(p => {
+                    p.position.x += p.userData.speed * (state.hostRate / 400) * chaosFactor;
+                    if (state.isChaosMode) {
+                        p.position.y += (Math.random() - 0.5) * 0.2;
+                    }
+                    if (p.position.x > 11) p.position.x = -11;
+                });
+            }
+
+            if (vehiclesGroup) {
+                vehiclesGroup.children.forEach(v => {
+                    v.userData.angle += v.userData.speed * (state.hostRate / 600);
+                    v.position.y = Math.sin(v.userData.angle) * v.userData.radius;
+                    v.position.z = Math.cos(v.userData.angle) * v.userData.radius;
+                    v.rotation.x += 0.01;
+                });
+            }
+
+            if (pipelineMesh) {
+                pipelineMesh.rotation.x += 0.002;
+            }
+
+            if (renderer && scene && camera) {
+                renderer.render(scene, camera);
+            }
+        }
+
+        // --- 4. Dynamic Telemetry Charts (Chart.js) ---
+        let chaosChart, cohesiveChart;
+
+        function initCharts() {
+            const ctxChaos = document.getElementById('chaosChart')?.getContext('2d');
+            if (ctxChaos) {
+                chaosChart = new Chart(ctxChaos, {
+                    type: 'line',
+                    data: {
+                        labels: Array(25).fill(''),
+                        datasets: [{
+                            label: 'Determined Chaos',
+                            data: Array(25).fill(0.14),
+                            borderColor: '#ff0055',
+                            borderWidth: 2,
+                            backgroundColor: 'rgba(255, 0, 85, 0.15)',
+                            fill: true,
+                            tension: 0.3,
+                            pointRadius: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: { display: false },
+                            y: {
+                                min: 0,
+                                max: 1.0,
+                                grid: { color: 'rgba(30, 41, 59, 0.4)' },
+                                ticks: { color: '#64748b', font: { size: 9 } }
+                            }
+                        }
+                    }
+                });
+            }
+
+            const ctxCohesive = document.getElementById('cohesiveChart')?.getContext('2d');
+            if (ctxCohesive) {
+                cohesiveChart = new Chart(ctxCohesive, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Copper Align', 'Hole Nicking', 'Rose Slice', 'D-Lock', 'CoAP Seg'],
+                        datasets: [{
+                            label: 'GFLOPS',
+                            data: [98, 88, 92, 95, 90],
+                            backgroundColor: [
+                                'rgba(0, 255, 170, 0.7)',
+                                'rgba(255, 220, 0, 0.7)',
+                                'rgba(0, 229, 255, 0.7)',
+                                'rgba(157, 0, 255, 0.7)',
+                                'rgba(255, 0, 85, 0.7)'
+                            ],
+                            borderRadius: 3
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            x: {
+                                ticks: { color: '#94a3b8', font: { size: 8 } },
+                                grid: { display: false }
+                            },
+                            y: {
+                                max: 120,
+                                grid: { color: 'rgba(30, 41, 59, 0.4)' },
+                                ticks: { color: '#64748b', font: { size: 9 } }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // Live Telemetry Update Loop
+        setInterval(() => {
+            if (chaosChart) {
+                const cData = chaosChart.data.datasets[0].data;
+                cData.shift();
+
+                let targetChaos = state.isChaosMode ? (0.6 + Math.random() * 0.3) : (0.1 + Math.random() * 0.08);
+                cData.push(targetChaos);
+                chaosChart.update('none');
+
+                const elVal = document.getElementById('current-chaos-val');
+                const elStatus = document.getElementById('top-chaos-status');
+                const elDot = document.getElementById('top-chaos-dot');
+
+                if (elVal) elVal.innerText = targetChaos.toFixed(2);
+                if (elStatus) {
+                    elStatus.innerText = `${targetChaos.toFixed(2)} (${state.isChaosMode ? 'ELEVATED' : 'SUPPRESSED'})`;
+                    elStatus.className = state.isChaosMode ? 'text-cyber-neonRed font-semibold' : 'text-cyber-neonGreen font-semibold';
+                }
+                if (elDot) {
+                    elDot.className = `w-2.5 h-2.5 rounded-full ${state.isChaosMode ? 'bg-cyber-neonRed animate-ping' : 'bg-cyber-neonGreen animate-pulse-fast'}`;
+                }
+            }
+
+            const curSpeed = ((state.hostRate / 450) * (state.isChaosMode ? 0.6 : 1.2)).toFixed(2);
+            const elSpeed = document.getElementById('pipeline-speed-text');
+            if (elSpeed) elSpeed.innerText = `${curSpeed} GB/s`;
+        }, 500);
+
+        // --- 5. Event Binding in DOMContentLoaded ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Lucide Icons
+            lucide.createIcons();
+
+            // Clock Interval
+            setInterval(() => {
+                const clock = document.getElementById('clock-display');
+                if (clock) clock.innerText = new Date().toTimeString().split(' ')[0] + ' UTC';
+            }, 1000);
+
+            // Startup System Logs
+            addTerminalLog("初始化 Layout-Jet & Pipeline 控制台系統...", "cyan");
+            addTerminalLog("解析 Pseudo-code 7 層結構成功對齊系統架構", "success");
+            addTerminalLog("D-locking 維度鎖定矩陣已錨定就緒", "success");
+
+            // Initialize UI Views & 3D & Charts
+            renderASTTree();
+            updateInspector(astLayersData[0]);
+            init3DSimulation();
+            animate3DSimulation();
+            initCharts();
+
+            // --- Sliders Listeners ---
+            const sliderHost = document.getElementById('slider-host-rate');
+            if (sliderHost) {
+                sliderHost.addEventListener('input', (e) => {
+                    state.hostRate = parseInt(e.target.value);
+                    document.getElementById('lbl-host-rate').innerText = `${state.hostRate} ops/s`;
+                });
+                sliderHost.addEventListener('change', (e) => {
+                    addTerminalLog(`調整 scheduling-host 速率至: ${e.target.value} ops/s`, 'info');
+                });
+            }
+
+            const sliderHelium = document.getElementById('slider-helium-smooth');
+            if (sliderHelium) {
+                sliderHelium.addEventListener('input', (e) => {
+                    state.heliumSmooth = parseFloat(e.target.value);
+                    document.getElementById('lbl-helium-smooth').innerText = state.heliumSmooth.toFixed(2);
+                });
+            }
+
+            // --- Action Buttons Event Bindings ---
+            const btnChaosToggle = document.getElementById('btn-toggle-chaos');
+            if (btnChaosToggle) {
+                btnChaosToggle.addEventListener('click', () => {
+                    state.isChaosMode = !state.isChaosMode;
+                    btnChaosToggle.innerText = `混沌模式: ${state.isChaosMode ? 'ON' : 'OFF'}`;
+                    btnChaosToggle.className = state.isChaosMode 
+                        ? 'px-2.5 py-1 bg-cyber-neonRed/20 border border-cyber-neonRed text-cyber-neonRed rounded transition animate-pulse cursor-pointer'
+                        : 'px-2.5 py-1 bg-slate-900/90 border border-cyber-neonGreen/50 text-cyber-neonGreen rounded transition cursor-pointer';
+                    
+                    if (state.isChaosMode) {
+                        addTerminalLog('⚠️ 觸發 determined-chaos 狀態，管道數據發生幾何性擾動！', 'error');
+                    } else {
+                        addTerminalLog('管道混沌壓制重新啟用，回復穩定流動狀態', 'success');
+                    }
+                });
+            }
+
+            const btnSuppress = document.getElementById('btn-suppress-chaos');
+            if (btnSuppress) {
+                btnSuppress.addEventListener('click', () => {
+                    state.isChaosMode = false;
+                    if (btnChaosToggle) {
+                        btnChaosToggle.innerText = '混沌模式: OFF';
+                        btnChaosToggle.className = 'px-2.5 py-1 bg-slate-900/90 border border-cyber-neonGreen/50 text-cyber-neonGreen rounded transition cursor-pointer';
+                    }
+                    addTerminalLog('觸發 [suppressed-pipeline]！已平抑微瑕疵與混沌擾動', 'success');
+                });
+            }
+
+            const btnTriggerDLock = document.getElementById('btn-trigger-dlock');
+            if (btnTriggerDLock) {
+                btnTriggerDLock.addEventListener('click', () => {
+                    state.isDLocked = true;
+                    const elDlock = document.getElementById('top-dlock-status');
+                    if (elDlock) elDlock.innerText = 'ANCHORED';
+                    addTerminalLog('執行 D-locking！幾何維度鎖定金鑰已被對齊與固定', 'cyan');
+                });
+            }
+
+            const btnUrgeCoap = document.getElementById('btn-urge-coap');
+            if (btnUrgeCoap) {
+                btnUrgeCoap.addEventListener('click', () => {
+                    addTerminalLog('發射 Urge-CoAP 廣播：disclosed-core 分段資源已成功曝光至網路', 'warn');
+                });
+            }
+
+            const btnRecalc = document.getElementById('btn-inspect-recalc');
+            if (btnRecalc) {
+                btnRecalc.addEventListener('click', () => {
+                    addTerminalLog(`重算層級 L${state.activeLayer} 之特徵凝聚張量與算力...`, 'info');
+                });
+            }
+
+            const btnCopy = document.getElementById('btn-copy-code');
+            if (btnCopy) {
+                btnCopy.addEventListener('click', () => {
+                    const rawCode = "P-coordination.layout-jet[p-q.filing_vehicle.scheduling-host-abide[smooth-pending.helium-cooperated_message[copper_aligned.feature_cohesive-calc[deed-mind.hole_nicking.suppressed-pipeline_determined-chaos.rose-counting.lining_secting-porting_sign.D-locking[system-prospensed.urge-coap.disclosed-core.segmented]]]]]";
+                    navigator.clipboard.writeText(rawCode).then(() => {
+                        addTerminalLog("Pseudo-code 語法已複製至剪貼簿", "success");
+                    });
+                });
+            }
+
+            const btnClearTerminal = document.getElementById('btn-clear-terminal');
+            if (btnClearTerminal) {
+                btnClearTerminal.addEventListener('click', () => {
+                    const term = document.getElementById('terminal-logs');
+                    if (term) term.innerHTML = '';
+                    addTerminalLog('Terminal 終端紀錄已清空', 'info');
+                });
+            }
+        });
+    </script>
+</body>
+</html>
